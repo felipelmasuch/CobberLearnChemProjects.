@@ -1,0 +1,85 @@
+import matplotlib
+matplotlib.use('TkAgg') # Ensures an interactive window in PyCharm
+
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+from mpl_toolkits.mplot3d import Axes3D
+
+# 1. Expanded Data (C1 to C15)
+carbons = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+boiling_points = np.array([-161.5, -89.0, -42.1, -0.5, 36.1, 68.7, 98.4, 125.7, 
+                           150.8, 174.1, 195.9, 216.3, 235.4, 253.5, 270.6])
+melting_points = np.array([-182.5, -183.3, -187.7, -138.4, -129.8, -95.3, -90.6, 
+                           -56.8, -53.5, -29.7, -25.6, -9.6, -5.4, 5.9, 10.0])
+names = ["Methane", "Ethane", "Propane", "Butane", "Pentane", "Hexane", "Heptane", 
+         "Octane", "Nonane", "Decane", "Undecane", "Dodecane", "Tridecane", "Tetradecane", "Pentadecane"]
+
+# 2. Setup Directory
+directory = "AlkaneBoilingPoints"
+if not os.path.exists(directory): os.makedirs(directory)
+
+# 3. Design Configuration (Dark Mode & Contrast)
+plt.style.use('dark_background')
+fig = plt.figure(figsize=(14, 8), facecolor='#121212')
+ax = fig.add_subplot(111, projection='3d', facecolor='#121212')
+
+# 4. Make Carbon Atoms "Special" 
+# Sizes increase with mass (carbon count), colors follow a 'hot' gradient
+sizes = carbons * 40 
+scatter = ax.scatter(carbons, boiling_points, melting_points, 
+                    c=boiling_points, cmap='spring', s=sizes, 
+                    edgecolor='#ffffff', linewidth=0.8, alpha=0.9, picker=5, label='Alkane Molecules')
+
+# 5. Trendlines and Regression
+z_bp = np.polyfit(carbons, boiling_points, 2)
+z_mp = np.polyfit(carbons, melting_points, 2)
+x_model = np.linspace(1, 15, 100)
+ax.plot(x_model, np.poly1d(z_bp)(x_model), np.poly1d(z_mp)(x_model), 
+        color='#00FFCC', linestyle='-', linewidth=2, alpha=0.7, label='Property Trendline')
+
+# 6. Styling: Legends and Labels outside the graph
+ax.set_xlabel('Number of Carbon Atoms', color='cyan', labelpad=10)
+ax.set_ylabel('Boiling Point (°C)', color='cyan', labelpad=10)
+ax.set_zlabel('Melting Point (°C)', color='cyan', labelpad=10)
+plt.title('Molecular Analysis of Linear Alkanes ($C_1 - C_{15}$)', fontsize=16, pad=20, color='white')
+
+# Move legend outside to the right
+ax.legend(loc='upper left', bbox_to_anchor=(1.1, 1), fontsize=10, frameon=True, facecolor='#1e1e1e')
+
+# Display equations in a dedicated sidebar-style box
+eq_text = (f"Regression Models:\n"
+           f"BP: $y = {z_bp[0]:.2f}x^2 + {z_bp[1]:.2f}x + {z_bp[2]:.2f}$\n"
+           f"MP: $z = {z_mp[0]:.2f}x^2 + {z_mp[1]:.2f}x + {z_mp[2]:.2f}$")
+fig.text(0.82, 0.4, eq_text, fontsize=10, color='#00FFCC', 
+         bbox=dict(facecolor='#1e1e1e', alpha=0.8, edgecolor='cyan'))
+
+# 7. Interactive Annotation
+annot = ax.text(0, 0, 0, "", color="white", fontsize=11, fontweight='bold',
+                bbox=dict(boxstyle="round4,pad=0.5", fc="#222222", ec="cyan", alpha=0.9))
+annot.set_visible(False)
+
+def on_click(event):
+    if event.inaxes == ax:
+        cont, ind = scatter.contains(event)
+        if cont:
+            idx = ind["ind"][0]
+            pos = scatter._offsets3d
+            annot.set_position((pos[0][idx], pos[1][idx]))
+            annot.set_3d_properties(pos[2][idx])
+            
+            c = carbons[idx]
+            struct = "CH4" if c == 1 else f"CH3(CH2){c-2}CH3"
+            annot.set_text(f" {names[idx]} \n Formula: C{c}H{2*c+2} \n Structure: {struct} ")
+            annot.set_visible(True)
+        else:
+            annot.set_visible(False)
+        fig.canvas.draw_idle()
+
+fig.canvas.mpl_connect("button_press_event", on_click)
+
+# 8. Save and Display
+plt.tight_layout()
+plt.savefig(os.path.join(directory, "Alkane_Professional_3D.png"), dpi=300, bbox_inches='tight')
+print("Interaction enabled: Click on a sphere to reveal molecular data.")
+plt.show()
