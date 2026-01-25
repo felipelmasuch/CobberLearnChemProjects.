@@ -1,0 +1,88 @@
+import pubchempy as pcp
+from rdkit import Chem
+from rdkit.Chem import Descriptors, rdMolDescriptors
+from rdkit.Chem.Draw import rdMolDraw2D
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich import box
+from PIL import Image
+import io
+
+console = Console()
+
+def fetch_and_analyze(compound_name):
+    # Status spinner keeps the user engaged while waiting for the network
+    with console.status(f"[bold green]Generating High-Res Report for '{compound_name}'...", spinner="bouncingBar"):
+        try:
+            # 1. Fetch from PubChem
+            results = pcp.get_compounds(compound_name, 'name')
+            if not results:
+                console.print(f"[bold red]❌ Compound '{compound_name}' not found.[/bold red]")
+                return
+
+            compound = results[0]
+            smiles = compound.smiles 
+            rd_mol = Chem.MolFromSmiles(smiles)
+            
+            if not rd_mol:
+                console.print("[bold red]❌ Structural parsing failed.[/bold red]")
+                return
+
+            # 2. Advanced Drawing (Standardized Options)
+            # 800x800 resolution for crisp images
+            drawer = rdMolDraw2D.MolDraw2DCairo(800, 800)
+            dopts = drawer.drawOptions()
+            
+            # Safe visual tweaks
+            dopts.addAtomIndices = False
+            dopts.bondLineWidth = 4           # Thicker bonds
+            dopts.padding = 0.1               
+            dopts.addStereoAnnotation = True 
+            
+            # Prepare and Draw
+            rdMolDraw2D.PrepareAndDrawMolecule(drawer, rd_mol)
+            drawer.FinishDrawing()
+
+            # Convert to PIL Image
+            img_bytes = drawer.GetDrawingText()
+            img = Image.open(io.BytesIO(img_bytes))
+
+            # 3. Create the Data Table
+            # FIX: Removed 'subtitle' argument which caused the crash
+            table = Table(
+                title=f"🔬 [bold white]CHEMICAL PROFILE: {compound_name.upper()}[/bold white]",
+                box=box.HEAVY_EDGE,
+                border_style="bright_blue",
+                show_header=True,
+                header_style="bold magenta"
+            )
+
+            table.add_column("Property", style="cyan")
+            table.add_column("Value", style="bold yellow")
+
+            # Helper for safe IUPAC name
+            iupac = compound.iupac_name if compound.iupac_name else "N/A"
+            
+            table.add_row("IUPAC Name", iupac)
+            table.add_row("Formula", compound.molecular_formula)
+            table.add_row("Molecular Weight", f"{compound.molecular_weight} g/mol")
+            table.add_row("Exact Mass", f"{Descriptors.ExactMolWt(rd_mol):.4f} u")
+            table.add_row("LogP", f"{Descriptors.MolLogP(rd_mol):.2f}")
+            table.add_row("TPSA", f"{Descriptors.TPSA(rd_mol):.2f} Å²")
+            table.add_row("Ring Count", str(rdMolDescriptors.CalcNumRings(rd_mol)))
+
+            # 4. Final Output
+            # We move the subtitle here to the Panel, which is safer
+            console.print("\n")
+            console.print(Panel(table, expand=False, border_style="green", subtitle="[italic]Source: PubChem & RDKit[/italic]"))
+            console.print(f"[bold white]SMILES:[/bold white] [dim green]{smiles}[/dim green]\n")
+
+            # Show the polished image
+            img.show()
+
+        except Exception as e:
+            console.print(f"[bold red]Critical Error:[/bold red] {e}")
+
+if __name__ == "__main__":
+    fetch_and_analyze("theobromine")
