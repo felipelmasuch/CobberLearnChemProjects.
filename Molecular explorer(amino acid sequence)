@@ -1,0 +1,70 @@
+from rdkit import Chem
+from rdkit.Chem import AllChem, Draw, Descriptors, Lipinski
+
+def generate_amino_acid_report():
+    # 1. Chemically Robust SMILES (Corrected Aromaticity for Histidine and Tryptophan)
+    essential_amino_acids = {
+        "Histidine": "N[C@@H](Cc1c[nH]cn1)C(=O)O",
+        "Isoleucine": "CC[C@H](C)[C@@H](C(=O)O)N",
+        "Leucine": "CC(C)C[C@@H](C(=O)O)N",
+        "Lysine": "NCCCC[C@@H](C(=O)O)N",
+        "Methionine": "CSCC[C@@H](C(=O)O)N",
+        "Phenylalanine": "N[C@@H](Cc1ccccc1)C(=O)O",
+        "Threonine": "C[C@@H](O)[C@@H](C(=O)O)N",
+        "Tryptophan": "N[C@@H](Cc1c[nH]c2ccccc12)C(=O)O",
+        "Valine": "CC(C)[C@@H](C(=O)O)N"
+    }
+
+    processed_mols = []
+    legends = []
+
+    print(f"{'Amino Acid':<15} | {'MW':<8} | {'LogP':<6} | {'TPSA':<6} | {'HBD':<4} | {'HBA':<4}")
+    print("-" * 65)
+
+    for name, smiles in essential_amino_acids.items():
+        # A. Safely Create Molecule
+        mol = Chem.MolFromSmiles(smiles)
+        
+        # ERROR HANDLING: Check if mol was created before proceeding
+        if mol is None:
+            print(f"Skipping {name}: Invalid SMILES string.")
+            continue
+
+        # B. 3D-Like Optimization
+        mol = Chem.AddHs(mol)  # Add Hydrogens for spatial accuracy
+        AllChem.EmbedMolecule(mol, AllChem.ETKDG()) # Generate 3D coordinates
+        AllChem.MMFFOptimizeMolecule(mol)           # Minimize energy (cleaner structure)
+        
+        # C. Calculate Properties
+        mw = Descriptors.ExactMolWt(mol)
+        logp = Descriptors.MolLogP(mol)
+        tpsa = Descriptors.TPSA(mol)
+        hbd = Lipinski.NumHDonors(mol)
+        hba = Lipinski.NumHAcceptors(mol)
+
+        # D. Print Results
+        print(f"{name:<15} | {mw:>8.2f} | {logp:>6.2f} | {tpsa:>6.2f} | {hbd:>4} | {hba:>4}")
+
+        # E. Prepare 2D Projection for the User
+        AllChem.Compute2DCoords(mol)
+        processed_mols.append(mol)
+        legends.append(f"{name}\nMW: {mw:.1f}\nTPSA: {tpsa:.1f}")
+
+    # 2. Polished Grid Visualization
+    if processed_mols:
+        img = Draw.MolsToGridImage(
+            processed_mols, 
+            molsPerRow=3, 
+            subImgSize=(400, 400), 
+            legends=legends,
+            useSVG=False # Set to True if you want high-res vector graphics
+        )
+        img.show()
+    else:
+        print("No molecules were successfully processed.")
+
+if __name__ == "__main__":
+    generate_amino_acid_report()
+
+
+The code above is an attempt at showcasing the nine essential dietary amino acids via the RDKit in PyCharm. 
